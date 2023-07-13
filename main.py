@@ -49,16 +49,23 @@ async def process_phone(message: types.Message, state: FSMContext):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
     keyboard.add("Проблемы с сайтом", "Проблемы с регистрацией/авторизацией", "Проблемы с оплатой", "Другое")
     await message.answer("Пожалуйста, выберите одну из следующих категорий проблем:", reply_markup=keyboard)
-    await SupportForm.problem.set()
+    await SupportForm.next()  # Изменено состояние на next
 
 
 @dp.message_handler(state=SupportForm.problem)
 async def process_problem(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['problem'] = message.text
-    # Запрос комментария у пользователя
-    await message.answer("Опишите вашу проблему подробнее или оставьте комментарий:")
-    await SupportForm.comment.set()
+    if message.text == "Другое":
+        # Запрос комментария у пользователя только при выборе категории "Другое"
+        await message.answer("Опишите вашу проблему подробнее или оставьте комментарий:")
+        await SupportForm.comment.set()
+    else:
+        # Сразу завершаем диалог при выборе других категорий
+        await state.finish()
+        await message.answer("Спасибо за предоставленную информацию и комментарий! "
+                             "Ваша заявка передана специалистам, которые займутся ей в ближайшее время!"
+                             "\n\nЧтобы создать новую заявку, нажмите /start")
 
 
 @dp.message_handler(state=SupportForm.comment)
@@ -73,17 +80,17 @@ async def process_comment(message: types.Message, state: FSMContext):
         channel_id = os.getenv('SUPPORT_CHANNEL_ID')
         await bot.send_message(channel_id, f"Имя: {name}\nТелефон: {phone}\nПроблема: {problem}\nКомментарий: {comment}")
     await state.finish()
-    # Благодарность пользователю и возврат к началу диалога
+    # Сообщение после завершения диалога
     await message.answer("Спасибо за предоставленную информацию и комментарий! "
-                         "Начнем новую сессию. Пожалуйста, введите ваше имя:")
-    await SupportForm.name.set()
+                         "Ваша заявка передана специалистам, которые займутся ей в ближайшее время!"
+                         "\n\nЧтобы создать новую заявку, нажмите /start")
 
 
 @dp.message_handler(commands=['restart'])
 async def restart(message: types.Message, state: FSMContext):
     # Сброс состояния пользователя и возврат к началу диалога
     await state.finish()
-    await message.answer("Начнем новую сессию. Пожалуйста, введите ваше имя:")
+    await message.answer("Пожалуйста, введите ваше имя:")
     await SupportForm.name.set()
 
 
